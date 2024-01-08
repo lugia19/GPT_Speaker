@@ -4,8 +4,10 @@ import signal
 import sys
 import threading
 import time
+import typing
 
 import requests
+from PyQt6 import QtGui
 from PyQt6.QtCore import QEvent
 from PyQt6.QtGui import QIcon
 from flask import Flask, request, jsonify
@@ -49,10 +51,11 @@ class AskKeys(QDialog):
         self.main_layout.addWidget(self.elevenlabs_api_key)
         self.main_layout.addWidget(self.openai_api_key)
         self.done_button = QPushButton("Done")
-        self.done_button.clicked.connect(self.close)
+        self.done_button.clicked.connect(lambda: self.done(0))
         self.main_layout.addWidget(self.done_button)
         self.setLayout(self.main_layout)
-
+    def closeEvent(self, a0: typing.Optional[QtGui.QCloseEvent]) -> None:
+        self.done(-1)
 
 class VoicePickerUI(QMainWindow):
     #Yes, I generated a lot of the UI code with GPT-4 because I'm lazy.
@@ -331,10 +334,12 @@ if __name__ == '__main__':
     gui_app = QApplication(sys.argv)
     gui_app.setWindowIcon(QIcon('logo.png'))
     gui_app.setStyleSheet(helper.get_stylesheet())
-
     while True:
         keys = AskKeys()
-        keys.exec()
+        return_code = keys.exec()
+        if return_code != 0:
+            os._exit(1) #Please just explode.
+
         openai_api_key = keys.openai_api_key.get_value()
         elevenlabs_api_key = keys.elevenlabs_api_key.get_value()
         try:
@@ -344,7 +349,6 @@ if __name__ == '__main__':
         except (openai.AuthenticationError,ValueError):
             print("API key error!")
             pass
-
 
     keyring.set_password("gpt_speaker", "elevenlabs_api_key", elevenlabs_api_key)
     keyring.set_password("gpt_speaker", "openai_api_key", openai_api_key)
