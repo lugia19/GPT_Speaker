@@ -14,5 +14,9 @@ Additionally, you can modify the text_changes.json file (will be created if not 
 The key/value pairs will be used to replace text. I use it to fix pronunciation of stuff like acronyms, eg "VGA": "V.G.A."
 
 You can see a usage example of the project here:
-<TODO: ADD VIDEO>
+
+
+
+
+https://github.com/lugia19/GPT_Speaker/assets/21088033/d5707648-6f33-4454-8655-fc60d102614f
 
