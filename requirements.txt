@@ -1,0 +1,6 @@
+requests
+keyring
+openai
+PyQt6
+flask
+elevenlabslib
