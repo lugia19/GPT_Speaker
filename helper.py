@@ -11,7 +11,7 @@ class ComboBoxItem(object):
         self.value = value
         self.label = label
 
-styleSheetPath = os.path.join(os.getcwd(), "darkmode.qss")
+styleSheetPath = os.path.join("resources","darkmode.qss")
 
 colors_dict = {
     "primary_color":"#1A1D22",

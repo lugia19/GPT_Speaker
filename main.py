@@ -8,11 +8,11 @@ import typing
 
 import requests
 from PyQt6 import QtGui
-from PyQt6.QtCore import QEvent
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QEvent, QMetaObject, Qt, Q_ARG
+from PyQt6.QtGui import QIcon, QFont
 from flask import Flask, request, jsonify
 import keyring
-from PyQt6.QtWidgets import (QApplication, QVBoxLayout, QWidget, QPushButton, QScrollArea, QFrame, QSizePolicy, QHBoxLayout, QLayout, QSystemTrayIcon, QMenu, QDialog, QMainWindow)
+from PyQt6.QtWidgets import (QApplication, QVBoxLayout, QWidget, QPushButton, QScrollArea, QFrame, QSizePolicy, QHBoxLayout, QLayout, QSystemTrayIcon, QMenu, QDialog, QMainWindow, QLabel)
 from elevenlabslib import *
 
 import helper
@@ -23,15 +23,12 @@ from customWidgets import LabeledInput, gen_voice_picker
 #Example: {"Jack":"Jill"} means that any mention of "Jack" will be replaced with "Jill" when it's being spoken.
 #Useful to fix pronounciation errors for acronyms and the like.
 text_changes_file = "text_changes.json"
+logo_path = os.path.join("resources","logo.png")
 if os.path.isfile(text_changes_file):
     text_changes = json.load(open(text_changes_file, "r"))
 else:
     text_changes = {}
     json.dump(text_changes, open(text_changes_file,"w"))
-
-#Whether or not to use the english_v2 model if available (requires alpha access).
-#I keep this enabled since I have alpha access and don't care about other languages - since english v2 is much faster to generate
-use_english_if_available = True
 
 #This function is run whenever a playback ends. I use it to add a small delay to make it sound more natural.
 def playback_end_func():
@@ -48,8 +45,11 @@ class AskKeys(QDialog):
         self.main_layout = QVBoxLayout()
         self.elevenlabs_api_key = LabeledInput(label="Elevenlabs API Key", configKey="elevenlabs_api_key", protected=True)
         self.openai_api_key = LabeledInput(label="OpenAI API Key", configKey="openai_api_key", protected=True)
+        self.elevenlabs_model = LabeledInput(label="TTS Model", configKey="elevenlabs_model", protected=False, data="eleven_multilingual_v2")
         self.main_layout.addWidget(self.elevenlabs_api_key)
         self.main_layout.addWidget(self.openai_api_key)
+        self.main_layout.addWidget(self.elevenlabs_model)
+
         self.done_button = QPushButton("Done")
         self.done_button.clicked.connect(lambda: self.done(0))
         self.main_layout.addWidget(self.done_button)
@@ -83,11 +83,15 @@ class VoicePickerUI(QMainWindow):
         self.button_remove = QPushButton('Remove')
         button_container.addWidget(self.button_add)
         button_container.addWidget(self.button_remove)
-        self.button_add.clicked.connect(self.add_widget)
+        self.button_add.clicked.connect(self.add_voice_picker)
         self.button_remove.clicked.connect(self.remove_widget)
 
         self.main_layout.addWidget(self.scroll_area)
         self.main_layout.addLayout(button_container)
+        self.last_lines = QLabel("")
+        self.last_lines.setFont(QFont('Arial', 12))
+        self.last_lines.setWordWrap(True)
+        self.main_layout.addWidget(self.last_lines)
 
         self.count = 0
         wrapper_widget = QWidget()
@@ -97,7 +101,7 @@ class VoicePickerUI(QMainWindow):
 
         #System icon setup
         self.trayIcon = QSystemTrayIcon(self)
-        self.trayIcon.setIcon(QIcon('logo.png'))
+        self.trayIcon.setIcon(QIcon(logo_path))
 
         # Create a menu for the tray icon
         trayMenu = QMenu()
@@ -126,11 +130,11 @@ class VoicePickerUI(QMainWindow):
             self.showNormal()
 
 
-    def add_widget(self):
+    def add_voice_picker(self):
         new_container = QHBoxLayout()
 
         label = "Voice "+str(self.count+1)
-        char_name =LabeledInput("Character Name\n(Empty=Voice Name)")
+        char_name = LabeledInput("Character Name\n(Empty=Voice Name)")
         voice_picker = gen_voice_picker(label, user=self.user, voiceList=self.voice_list, includeNone=True)
         gender_input = LabeledInput("Character Gender", data=["female","male", "other"], comboboxMinimumSize=10)
         new_container.addWidget(char_name)
@@ -199,7 +203,6 @@ voice_cache = dict()
 playback_options = PlaybackOptions(onPlaybackEnd=playback_end_func)
 synthesizer = Synthesizer(defaultPlaybackOptions=playback_options)
 synthesizer.start()
-
 
 @flask_app.route('/', methods=['GET'])
 def home():
@@ -290,11 +293,12 @@ def generate_audio():
     speech_data = json.loads(tool_call.get("function").get("arguments")).get("speech_data")
     print(speech_data)
     lines = speech_data
-
+    all_text = ""
     # Process each character line in the request
     for item in lines:
         character = item.get("character")
         text = item.get("text")
+
 
         for key, value in text_changes.items():
             text = text.replace(key, value)
@@ -303,7 +307,7 @@ def generate_audio():
         matches = process.extract(character, list(voice_dict.keys()), limit=None)
         most_likely_match = voice_dict[matches[0][0]].get("id")
         cached_voice = voice_cache.get(character)
-        print("")
+        print(f"Trying to find voice corresponding to {character}")
         print(cached_voice)
         print(most_likely_match)
 
@@ -316,12 +320,14 @@ def generate_audio():
                 voice_cache[character] = None
 
         voice:ElevenLabsVoice = voice_cache[character]
+        all_text += f"{character}: {text}\n\n"
         if voice is not None:
             print(f"Character: {character}, Voice: {voice.name if voice is not None else ''}, Text: {text}")
             synthesizer.add_to_queue(voice, text, generation_options)
         else:
             print(f"Voice not found, skipping text '{text}'")
-
+    all_text = all_text.strip()
+    QMetaObject.invokeMethod(ex.last_lines, "setText", Qt.ConnectionType.AutoConnection, Q_ARG(str, all_text))
     # Return a success response
     return jsonify({"message": "Audio generation successful."}), 200
 
@@ -332,7 +338,7 @@ if __name__ == '__main__':
         myappid = u'lugia19.GPT_Speakerv3'
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     gui_app = QApplication(sys.argv)
-    gui_app.setWindowIcon(QIcon('logo.png'))
+    gui_app.setWindowIcon(QIcon(logo_path))
     gui_app.setStyleSheet(helper.get_stylesheet())
     while True:
         keys = AskKeys()
@@ -342,6 +348,7 @@ if __name__ == '__main__':
 
         openai_api_key = keys.openai_api_key.get_value()
         elevenlabs_api_key = keys.elevenlabs_api_key.get_value()
+        elevenlabs_model = keys.elevenlabs_model.get_value()
         try:
             openai_client = openai.Client(api_key=openai_api_key)
             elevenlabs_user = ElevenLabsUser(elevenlabs_api_key)
@@ -352,13 +359,9 @@ if __name__ == '__main__':
 
     keyring.set_password("gpt_speaker", "elevenlabs_api_key", elevenlabs_api_key)
     keyring.set_password("gpt_speaker", "openai_api_key", openai_api_key)
+    keyring.set_password("gpt_speaker", "elevenlabs_model", elevenlabs_model)
 
-    target_model = "eleven_multilingual_v2"
-    if use_english_if_available:
-        for model in elevenlabs_user.get_models():
-            if model.modelID == "eleven_english_v2":
-                target_model = model.modelID
-    generation_options = GenerationOptions(model_id=target_model, latencyOptimizationLevel=1)
+    generation_options = GenerationOptions(model_id=elevenlabs_model, latencyOptimizationLevel=1)
 
     ex = VoicePickerUI()
     ex.trayIcon.show()

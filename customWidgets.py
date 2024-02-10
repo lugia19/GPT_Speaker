@@ -109,8 +109,7 @@ class LabeledInput(QtWidgets.QWidget):
 
         currentValue = None
         if configKey is not None:
-            if protected:
-                currentValue = keyring.get_password("gpt_speaker", configKey)
+            currentValue = keyring.get_password("gpt_speaker", configKey)
 
         if currentValue is not None:
             if isinstance(data, list):
