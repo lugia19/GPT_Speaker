@@ -19,6 +19,9 @@ import helper
 import openai
 from customWidgets import LabeledInput, gen_voice_picker
 
+#Can be customized, but must be changed in the userscript as well
+flask_port = 57319
+
 #This file will be used to replace the keys with the value.
 #Example: {"Jack":"Jill"} means that any mention of "Jack" will be replaced with "Jill" when it's being spoken.
 #Useful to fix pronounciation errors for acronyms and the like.
@@ -365,12 +368,12 @@ if __name__ == '__main__':
 
     ex = VoicePickerUI()
     ex.trayIcon.show()
-    flask_thread = threading.Thread(target=flask_app.run, kwargs={'host':'127.0.0.1', 'port':57335})
+    flask_thread = threading.Thread(target=flask_app.run, kwargs={'host':'127.0.0.1', 'port':flask_port})
     flask_thread.start()
 
 
     ex.show()
     gui_app.exec()
 
-    requests.get("http://localhost:57335/stopServer")   #Kill the flask server
+    requests.get(f"http://localhost:{flask_port}/stopServer")   #Kill the flask server
     flask_thread.join()

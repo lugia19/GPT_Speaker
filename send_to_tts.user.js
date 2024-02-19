@@ -10,6 +10,9 @@
 // ==/UserScript==
 
 
+
+const flask_port = 57319
+
 let message_classes = []
 if (window.top !== window.self)
 	throw 'Stopping execution of speaker button integration in separate thread.'
@@ -49,7 +52,7 @@ function handleButtonClick(event, markdownChild) {
 		let textContent = markdownChild.textContent;
 		console.log(textContent);
 
-		let apiEndpoint = 'http://localhost:57319/generate_extract_audio';
+		let apiEndpoint = `http://localhost:${flask_port}/generate_extract_audio`;
 		// Prepare the data to send
 		let dataToSend = JSON.stringify({
 		  text: textContent
