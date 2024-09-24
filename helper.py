@@ -2,7 +2,8 @@ from __future__ import annotations
 import os
 
 from typing import Union, Optional, List
-from elevenlabslib import ElevenLabsUser, ElevenLabsVoice
+from elevenlabslib import User
+from elevenlabslib.Voice import Voice
 
 
 class ComboBoxItem(object):
@@ -32,9 +33,9 @@ def get_stylesheet():
         styleSheet = styleSheet.replace("{" + colorKey + "}", colorValue)
     return styleSheet
 
-def get_list_of_voice_texts(user: ElevenLabsUser | None, voiceList:List[ElevenLabsVoice]=None):
+def get_list_of_voice_texts(user: User | None, voiceList:List[Voice]=None):
     if voiceList is None:
         voiceList = user.get_available_voices()
     if user is None:
         return []
-    return [ComboBoxItem(voice.voiceID, f"{voice.initialName}{f' (PVC)' if voice.category == 'professional' else ''}") for voice in voiceList]
+    return [ComboBoxItem(voice.voiceID, f"{voice.name}{f' (PVC)' if voice.category == 'professional' else ''}") for voice in voiceList]

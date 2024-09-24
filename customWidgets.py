@@ -2,7 +2,7 @@ from typing import List
 
 import keyring
 from PyQt6 import QtWidgets, QtCore, QtGui
-from elevenlabslib import ElevenLabsUser, ElevenLabsVoice
+from elevenlabslib import User, Voice
 
 import helper
 
@@ -145,7 +145,7 @@ class LabeledInput(QtWidgets.QWidget):
         else:
             return self.combo_box.currentData()
 
-def gen_voice_picker(label, user:ElevenLabsUser, info=None, voiceList:List[ElevenLabsVoice] = None, includeNone = False):
+def gen_voice_picker(label, user:User, info=None, voiceList:List[Voice] = None, includeNone = False):
     voiceList = voiceList
     data = helper.get_list_of_voice_texts(user, voiceList)
     if includeNone:

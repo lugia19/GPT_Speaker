@@ -10,6 +10,8 @@ import requests
 from PyQt6 import QtGui
 from PyQt6.QtCore import QEvent, QMetaObject, Qt, Q_ARG
 from PyQt6.QtGui import QIcon, QFont
+from elevenlabslib.Voice import Voice
+from elevenlabslib.utils import play_dialog_with_stitching
 from flask import Flask, request, jsonify
 import keyring
 from PyQt6.QtWidgets import (QApplication, QVBoxLayout, QWidget, QPushButton, QScrollArea, QFrame, QSizePolicy, QHBoxLayout, QLayout, QSystemTrayIcon, QMenu, QDialog, QMainWindow, QLabel)
@@ -36,6 +38,7 @@ else:
 #This function is run whenever a playback ends. I use it to add a small delay to make it sound more natural.
 def playback_end_func():
     time.sleep(0.5)
+    elevenlabs_user.get_history_items_paginated(1)[0].delete()
 
 #For other info, the instructions GPT-3.5 gets mean that it will _only_ synthesize the text present in quotes (more or less).
 #If your text is in a different format, you'll have to adjust them accordingly.
@@ -204,8 +207,6 @@ CORS(flask_app)
 voice_cache = dict()
 
 playback_options = PlaybackOptions(onPlaybackEnd=playback_end_func)
-synthesizer = Synthesizer(defaultPlaybackOptions=playback_options)
-synthesizer.start()
 
 @flask_app.route('/', methods=['GET'])
 def home():
@@ -298,13 +299,25 @@ def generate_audio():
     lines = speech_data
     all_text = ""
     # Process each character line in the request
+    lines_by_character = dict()
     for item in lines:
         character = item.get("character")
         text = item.get("text")
+        if item.get("character") not in lines_by_character:
+            lines_by_character[character] = [text]
+        else:
+            lines_by_character[character].append(text)
 
+    for character, texts in lines_by_character.items():
+        for text in texts:
+            for key, value in text_changes.items():
+                text = text.replace(key, value)
+            all_text += f"{character}: {text}\n\n"
 
-        for key, value in text_changes.items():
-            text = text.replace(key, value)
+    all_text = all_text.strip()
+    QMetaObject.invokeMethod(ex.last_lines, "setText", Qt.ConnectionType.AutoConnection, Q_ARG(str, all_text))
+
+    for character, texts in lines_by_character.items():
         #We use fuzzy matching to get the most likely voice.
         from fuzzywuzzy import process
         matches = process.extract(character, list(voice_dict.keys()), limit=None)
@@ -322,15 +335,14 @@ def generate_audio():
             except IndexError:
                 voice_cache[character] = None
 
-        voice:ElevenLabsVoice = voice_cache[character]
-        all_text += f"{character}: {text}\n\n"
+        voice:Voice = voice_cache[character]
+
         if voice is not None:
             print(f"Character: {character}, Voice: {voice.name if voice is not None else ''}, Text: {text}")
-            synthesizer.add_to_queue(voice, text, generation_options)
+            play_dialog_with_stitching(voice, texts, generation_options, default_playback_options=playback_options, auto_determine_emotion=True)
         else:
             print(f"Voice not found, skipping text '{text}'")
-    all_text = all_text.strip()
-    QMetaObject.invokeMethod(ex.last_lines, "setText", Qt.ConnectionType.AutoConnection, Q_ARG(str, all_text))
+
     # Return a success response
     return jsonify({"message": "Audio generation successful."}), 200
 
@@ -354,7 +366,7 @@ if __name__ == '__main__':
         elevenlabs_model = keys.elevenlabs_model.get_value()
         try:
             openai_client = openai.Client(api_key=openai_api_key)
-            elevenlabs_user = ElevenLabsUser(elevenlabs_api_key)
+            elevenlabs_user = User(elevenlabs_api_key)
             break
         except (openai.AuthenticationError,ValueError):
             print("API key error!")
