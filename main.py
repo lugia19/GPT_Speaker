@@ -279,7 +279,7 @@ def generate_audio():
         messages[-1]["content"] += f"- '{character_name}' (Gender: {data.get('gender')})\n"
 
     response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=messages,
         tools=tools,
         tool_choice={"type": "function", "function": {"name": "speak"}}
